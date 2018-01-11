@@ -65,10 +65,11 @@ func doRequest(ctx context.Context, req *http.Request) (*http.Response, error) {
 
 // Provider represents an OpenID Connect server's configuration.
 type Provider struct {
-	issuer      string
-	authURL     string
-	tokenURL    string
-	userInfoURL string
+	issuer        string
+	authURL       string
+	tokenURL      string
+	userInfoURL   string
+	endSessionURL string
 
 	// Raw claims returned by the server.
 	rawClaims []byte
@@ -82,11 +83,12 @@ type cachedKeys struct {
 }
 
 type providerJSON struct {
-	Issuer      string `json:"issuer"`
-	AuthURL     string `json:"authorization_endpoint"`
-	TokenURL    string `json:"token_endpoint"`
-	JWKSURL     string `json:"jwks_uri"`
-	UserInfoURL string `json:"userinfo_endpoint"`
+	Issuer        string `json:"issuer"`
+	AuthURL       string `json:"authorization_endpoint"`
+	TokenURL      string `json:"token_endpoint"`
+	JWKSURL       string `json:"jwks_uri"`
+	UserInfoURL   string `json:"userinfo_endpoint"`
+	EndSessionURL string `json:"end_session_endpoint"`
 }
 
 // NewProvider uses the OpenID Connect discovery mechanism to construct a Provider.
@@ -107,11 +109,11 @@ func NewProvider(ctx context.Context, issuer string) (*Provider, error) {
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("unable to read response body: %v", err)
+		return nil, fmt.Errorf("oidc: unable to read response body: %v", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%s: %s", resp.Status, body)
+		return nil, fmt.Errorf("oidc: %s: %s", resp.Status, body)
 	}
 
 	var p providerJSON
@@ -123,13 +125,15 @@ func NewProvider(ctx context.Context, issuer string) (*Provider, error) {
 	if p.Issuer != issuer {
 		return nil, fmt.Errorf("oidc: issuer did not match the issuer returned by provider, expected %q got %q", issuer, p.Issuer)
 	}
+
 	return &Provider{
-		issuer:       p.Issuer,
-		authURL:      p.AuthURL,
-		tokenURL:     p.TokenURL,
-		userInfoURL:  p.UserInfoURL,
-		rawClaims:    body,
-		remoteKeySet: NewRemoteKeySet(ctx, p.JWKSURL),
+		issuer:        p.Issuer,
+		authURL:       p.AuthURL,
+		tokenURL:      p.TokenURL,
+		userInfoURL:   p.UserInfoURL,
+		endSessionURL: p.EndSessionURL,
+		rawClaims:     body,
+		remoteKeySet:  NewRemoteKeySet(ctx, p.JWKSURL),
 	}, nil
 }
 
@@ -156,6 +160,11 @@ func (p *Provider) Claims(v interface{}) error {
 // Endpoint returns the OAuth2 auth and token endpoints for the given provider.
 func (p *Provider) Endpoint() oauth2.Endpoint {
 	return oauth2.Endpoint{AuthURL: p.authURL, TokenURL: p.tokenURL}
+}
+
+// EndSessionURL returns the url for ending a session
+func (p *Provider) EndSessionURL() string {
+	return p.endSessionURL
 }
 
 // UserInfo represents the OpenID Connect userinfo claims.
@@ -284,7 +293,7 @@ func (i *IDToken) Claims(v interface{}) error {
 	return json.Unmarshal(i.claims, v)
 }
 
-// VerifyAccessToken verifies that the hash of the access token that corresponds to the iD token
+// VerifyAccessToken verifies that the hash of the access token that corresponds to the ID token
 // matches the hash in the id token. It returns an error if the hashes  don't match.
 // It is the caller's responsibility to ensure that the optional access token hash is present for the ID token
 // before calling this method. See https://openid.net/specs/openid-connect-core-1_0.html#CodeIDToken
