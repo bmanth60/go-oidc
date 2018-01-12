@@ -185,6 +185,11 @@ func (u *UserInfo) Claims(v interface{}) error {
 	return json.Unmarshal(u.claims, v)
 }
 
+// RawClaims get raw bytes for claims
+func (u *UserInfo) RawClaims() []byte {
+	return u.claims
+}
+
 // UserInfo uses the token source to query the provider's user info endpoint.
 func (p *Provider) UserInfo(ctx context.Context, tokenSource oauth2.TokenSource) (*UserInfo, error) {
 	if p.userInfoURL == "" {
